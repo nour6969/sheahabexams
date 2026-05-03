@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum MathBranch {
+  STATICS
+  DYNAMICS
+  ALGEBRA
+  SOLID_GEOMETRY
+  GEOMETRY
+  CALCULUS
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String   @unique
+  parentPhone  String   @default("") @map("parent_phone")
+  passwordHash String   @map("password_hash")
+  role         Role     @default(STUDENT)
+  results      Result[]
+  attempts     ExamAttempt[]
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Exam {
+  id              String        @id @default(cuid())
+  title           String
+  branch          MathBranch
+  durationMinutes Int           @default(30) @map("duration_minutes")
+  questions       Question[]
+  results         Result[]
+  attempts        ExamAttempt[]
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@index([branch])
+  @@map("exams")
+}
+
+model Question {
+  id        String   @id @default(cuid())
+  examId    String   @map("exam_id")
+  exam      Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  text      String
+  imageUrl  String?  @map("image_url")
+  choices   Choice[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([examId])
+  @@map("questions")
+}
+
+model Choice {
+  id         String   @id @default(cuid())
+  questionId String   @map("question_id")
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false) @map("is_correct")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([questionId])
+  @@map("choices")
+}
+
+model Result {
+  id          String         @id @default(cuid())
+  userId      String         @map("user_id")
+  examId      String         @map("exam_id")
+  attemptId   String?        @unique @map("attempt_id")
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam        Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
+  attempt     ExamAttempt?   @relation(fields: [attemptId], references: [id], onDelete: SetNull)
+  score       Int
+  timedOut    Boolean        @default(false) @map("timed_out")
+  answers     ResultAnswer[]
+  submittedAt DateTime       @default(now()) @map("submitted_at")
+
+  @@index([userId])
+  @@index([examId])
+  @@map("results")
+}
+
+model ResultAnswer {
+  id                 String   @id @default(cuid())
+  resultId           String   @map("result_id")
+  result             Result   @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  questionId         String   @map("question_id")
+  selectedChoiceId   String?  @map("selected_choice_id")
+  questionText       String   @map("question_text")
+  questionImageUrl   String?  @map("question_image_url")
+  selectedChoiceText String?  @map("selected_choice_text")
+  correctChoiceText  String   @map("correct_choice_text")
+  isCorrect          Boolean  @default(false) @map("is_correct")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@unique([resultId, questionId])
+  @@index([resultId])
+  @@map("result_answers")
+}
+
+model ExamAttempt {
+  id          String    @id @default(cuid())
+  userId      String    @map("user_id")
+  examId      String    @map("exam_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exam        Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  result      Result?
+  startedAt   DateTime  @default(now()) @map("started_at")
+  expiresAt   DateTime  @map("expires_at")
+  submittedAt DateTime? @map("submitted_at")
+
+  @@index([userId, examId, submittedAt])
+  @@map("exam_attempts")
+}
+
+model RateLimitBucket {
+  id          String   @id @default(cuid())
+  key         String
+  windowStart DateTime @map("window_start")
+  count       Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([key, windowStart])
+  @@index([windowStart])
+  @@map("rate_limit_buckets")
+}
