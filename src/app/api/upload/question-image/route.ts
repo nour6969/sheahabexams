@@ -1,11 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { ApiError, handleApiError } from "@/lib/errors";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { requireAuth } from "@/lib/security";
+import { put } from "@vercel/blob";
 
 export const runtime = "nodejs";
 
@@ -40,18 +39,20 @@ export async function POST(request: NextRequest) {
       throw new ApiError(400, "Only JPG, PNG, WebP, and GIF images are allowed.");
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      throw new ApiError(400, "Question images must be 5MB or smaller.");
+    if (file.size > 10 * 1024 * 1024) {
+      throw new ApiError(400, "Question images must be 10MB or smaller.");
     }
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "questions");
-    await mkdir(uploadDir, { recursive: true });
-
-    const filename = `${randomUUID()}.${extension}`;
-    await writeFile(path.join(uploadDir, filename), Buffer.from(await file.arrayBuffer()));
+  
+    const filename = `questions/${randomUUID()}.${extension}`;
+    
+   
+    const blob = await put(filename, file, {
+      access: 'public',
+    });
 
     return NextResponse.json({
-      url: `/uploads/questions/${filename}`
+      url: blob.url
     });
   } catch (error) {
     return handleApiError(error);
